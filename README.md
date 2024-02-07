@@ -3,7 +3,7 @@ Automate Improved Yarn Audit is a script that automates the process of running `
 
 GitHub Repo: https://github.com/iamsatyam77/automate-improved-yarn-audit
 
-[![NPM](https://nodei.co/npm/improved-yarn-audit.png)](https://nodei.co/npm/improved-yarn-audit/)
+[![NPM](https://nodei.co/npm/automate-improved-yarn-audit.png)](https://nodei.co/npm/automate-improved-yarn-audit/)
 
 ## Introduction
 This README provides guidance on bypassing vulnerability checks in "yarn audit" process when no patches are available for reported vulnerabilities. Yarn's yarn audit command checks your project's dependencies for security vulnerabilities against the Node Security Advisories database. In cases where vulnerabilities are identified for which no patches or fixes are available immediately, you may need to consider bypassing these checks to ensure the continued functionality of your project.
