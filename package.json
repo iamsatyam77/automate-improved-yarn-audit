@@ -1,0 +1,19 @@
+{
+  "name": "automate-improved-yarn-audit",
+  "version": "0.1.8",
+  "description": "A utility for running automate improved yarn audit.",
+  "main": "dist/automate-improved-yarn-audit.js",
+  "bin": "dist/automate-improved-yarn-audit.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.16",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "improved-yarn-audit": "^3.0.0"
+  }
+}
+
