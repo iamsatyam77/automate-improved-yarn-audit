@@ -1,6 +1,6 @@
 {
   "name": "automate-improved-yarn-audit",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A utility for running automate improved yarn audit.",
   "main": "dist/automate-improved-yarn-audit.js",
   "bin": "dist/automate-improved-yarn-audit.js",
