@@ -1,6 +1,6 @@
 {
   "name": "automate-improved-yarn-audit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A utility for running automate improved yarn audit.",
   "main": "dist/automate-improved-yarn-audit.js",
   "bin": "dist/automate-improved-yarn-audit.js",
@@ -14,6 +14,12 @@
   },
   "dependencies": {
     "improved-yarn-audit": "^3.0.0"
-  }
+  },
+  "keywords": [
+    "no-patch-available",
+    "yarn-audit",
+    "bypass",
+    "ignore",
+    "exclude"
+  ]
 }
-
