@@ -276,13 +276,14 @@ export class YarnAuditCheck {
 
 // Check if command line arguments are provided
 if (process.argv.length <= 2) {
-  console.log("Usage: yarn run automate-improved-yarn-audit <arg1> <arg2> ...");
+  console.log("Usage: yarn run automate-improved-yarn-audit <root-path> <arg1> <arg2> ...");
   process.exit(1); // Exit the script with error code 1
 }
 
 // Extract command line arguments (excluding the first two elements which are 'node' and the script file name)
-const excludePackages = process.argv.slice(2);
-
+const excludePackages = process.argv.slice(3);
+const rootPath = process.argv.slice(2, 3)[0];
+process.chdir(rootPath);
 // Instantiate and run the class
 const yarnAuditCheck = new YarnAuditCheck(excludePackages);
 yarnAuditCheck.runYarnAudit();
