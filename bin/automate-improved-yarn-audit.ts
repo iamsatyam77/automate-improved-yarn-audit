@@ -276,7 +276,7 @@ export class YarnAuditCheck {
 
 // Check if command line arguments are provided
 if (process.argv.length <= 2) {
-  console.log("Usage: node script.js <arg1> <arg2> ...");
+  console.log("Usage: yarn run automate-improved-yarn-audit <arg1> <arg2> ...");
   process.exit(1); // Exit the script with error code 1
 }
 
