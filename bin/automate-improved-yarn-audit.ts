@@ -65,16 +65,31 @@ export class YarnAuditCheck {
         : excludePackageList;
   }
 
-  private showTable(tableRows: any[]): void {
+  public showTable(tableRows: any[]): void {
     const table = new Table({
       style: { head: ["reset"] },
       colAligns: ["left", "left", "left"],
       head: []
     });
 
-    table.push(tableRows);
+    tableRows.forEach((row) => table.push(row));
     console.log(table.toString());
   }
+
+  public formatStatus = (status: string | boolean): string => {
+    // Check if status is either true, false, or warn
+    switch (status) {
+      case true:
+        return Colors.FG_GREEN + "PASS" + Colors.RESET_COLOR;
+      case false:
+        return Colors.FG_RED + "FAIL" + Colors.RESET_COLOR;
+      case "warn":
+        return Colors.FG_YELLOW + "WARNING" + Colors.RESET_COLOR;
+      default:
+        return String(status);
+    }
+  };
+
   private formatSeverity(severity: string): string {
     let formattedSeverity: string;
 
@@ -288,4 +303,18 @@ const rootPath = process.argv.slice(2, 3)[0];
 process.chdir(rootPath);
 // Instantiate and run the class
 const yarnAuditCheck = new YarnAuditCheck(excludePackages);
-yarnAuditCheck.runYarnAudit();
+yarnAuditCheck
+  .runYarnAudit()
+  .then((status) => {
+    yarnAuditCheck.showTable([
+      { "Yarn Audit Check Status": yarnAuditCheck.formatStatus(status) }
+    ]);
+    if (!status) {
+      process.exit(1);
+    }
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error(`ERROR: ${error.message}`);
+    process.exit(1);
+  });
