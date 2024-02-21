@@ -43,12 +43,6 @@ const enum Colors {
   RESET_COLOR = "\x1b[0m"
 }
 
-const table = new Table({
-  style: { head: ["reset"] },
-  colAligns: ["left", "left", "left"],
-  head: []
-});
-
 export class YarnAuditCheck {
   private readonly AUDIT_ADVISORY: string = "auditAdvisory";
   private readonly AUDIT_SUMMARY: string = "auditSummary";
@@ -71,6 +65,16 @@ export class YarnAuditCheck {
         : excludePackageList;
   }
 
+  private showTable(tableRows: any[]): void {
+    const table = new Table({
+      style: { head: ["reset"] },
+      colAligns: ["left", "left", "left"],
+      head: []
+    });
+
+    table.push(tableRows);
+    console.log(table.toString());
+  }
   private formatSeverity(severity: string): string {
     let formattedSeverity: string;
 
@@ -125,12 +129,10 @@ export class YarnAuditCheck {
         };
 
         // Display table for packages with vulnerabilities
-        const tableRows: any[] = [
-          ...Object.entries(auditPackage).map(([key, value]) => ({
-            [key]: key === "Severity" ? this.formatSeverity(value) : value
-          }))
-        ];
-        table.push(tableRows);
+        const tableRows = Object.entries(auditPackage).map(([key, value]) => ({
+          [key]: key === "Severity" ? this.formatSeverity(value) : value
+        }));
+        this.showTable(tableRows);
 
         return auditPackage;
       });
@@ -143,12 +145,10 @@ export class YarnAuditCheck {
     if (this.excludePackageList.length) {
       // eslint-disable-next-line no-console
       console.info(`\n ${this.excludePackageList.length} - Package excluded:`);
-      const excludePackagesList: any[] = this.excludePackageList.map(
-        (value) => ({
-          [value]: `${Colors.FG_GREEN} EXCLUDED ${Colors.RESET_COLOR}`
-        })
-      );
-      table.push(excludePackagesList);
+      const excludePackagesList = this.excludePackageList.map((value) => ({
+        [value]: `${Colors.FG_GREEN} EXCLUDED ${Colors.RESET_COLOR}`
+      }));
+      this.showTable(excludePackagesList);
     }
 
     this.printAuditSummary(auditOutput, finalAuditPackages);
@@ -276,7 +276,9 @@ export class YarnAuditCheck {
 
 // Check if command line arguments are provided
 if (process.argv.length <= 2) {
-  console.log("Usage: yarn run automate-improved-yarn-audit <root-path> <arg1> <arg2> ...");
+  console.log(
+    "Usage: yarn run automate-improved-yarn-audit <project-path> <arg1> <arg2> ..."
+  );
   process.exit(1); // Exit the script with error code 1
 }
 

@@ -7,11 +7,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.YarnAuditCheck = void 0;
 const node_child_process_1 = require("node:child_process");
 const cli_table_1 = __importDefault(require("cli-table"));
-const table = new cli_table_1.default({
-    style: { head: ["reset"] },
-    colAligns: ["left", "left", "left"],
-    head: []
-});
 class YarnAuditCheck {
     AUDIT_ADVISORY = "auditAdvisory";
     AUDIT_SUMMARY = "auditSummary";
@@ -31,6 +26,15 @@ class YarnAuditCheck {
             excludePackageList.length === 0
                 ? this.excludePackageList
                 : excludePackageList;
+    }
+    showTable(tableRows) {
+        const table = new cli_table_1.default({
+            style: { head: ["reset"] },
+            colAligns: ["left", "left", "left"],
+            head: []
+        });
+        table.push(tableRows);
+        console.log(table.toString());
     }
     formatSeverity(severity) {
         let formattedSeverity;
@@ -72,12 +76,10 @@ class YarnAuditCheck {
                 "More info": `https://www.npmjs.com/advisories/${advisory.data.resolution.id}`
             };
             // Display table for packages with vulnerabilities
-            const tableRows = [
-                ...Object.entries(auditPackage).map(([key, value]) => ({
-                    [key]: key === "Severity" ? this.formatSeverity(value) : value
-                }))
-            ];
-            table.push(tableRows);
+            const tableRows = Object.entries(auditPackage).map(([key, value]) => ({
+                [key]: key === "Severity" ? this.formatSeverity(value) : value
+            }));
+            this.showTable(tableRows);
             return auditPackage;
         });
         const vulnerablePackages = finalAuditPackages.filter((i) => this.SEVERITY_LEVELS.slice(0, 2).includes(i.Severity));
@@ -88,7 +90,7 @@ class YarnAuditCheck {
             const excludePackagesList = this.excludePackageList.map((value) => ({
                 [value]: `${"\u001B[32m" /* Colors.FG_GREEN */} EXCLUDED ${"\u001B[0m" /* Colors.RESET_COLOR */}`
             }));
-            table.push(excludePackagesList);
+            this.showTable(excludePackagesList);
         }
         this.printAuditSummary(auditOutput, finalAuditPackages);
         return pass;
@@ -190,7 +192,7 @@ class YarnAuditCheck {
 exports.YarnAuditCheck = YarnAuditCheck;
 // Check if command line arguments are provided
 if (process.argv.length <= 2) {
-    console.log("Usage: yarn run automate-improved-yarn-audit <root-path> <arg1> <arg2> ...");
+    console.log("Usage: yarn run automate-improved-yarn-audit <project-path> <arg1> <arg2> ...");
     process.exit(1); // Exit the script with error code 1
 }
 // Extract command line arguments (excluding the first two elements which are 'node' and the script file name)
