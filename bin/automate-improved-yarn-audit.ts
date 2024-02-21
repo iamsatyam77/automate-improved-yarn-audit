@@ -21,6 +21,11 @@ export type YarnAuditData = {
   data: YarnAdvisoryData;
 };
 
+export type YarnAuditError = {
+  type: string;
+  data: string;
+};
+
 export type YarnAuditSummary = {
   vulnerabilities: {
     info: number;
@@ -182,7 +187,10 @@ export class YarnAuditCheck {
     const auditSummaryObject: YarnAuditSummary = JSON.parse(
       stringifyAuditSummary
     ) as YarnAuditSummary;
-    const severity = this.SEVERITY_LEVELS.map((level) => ({ [level]: 0 }));
+    const severity = this.SEVERITY_LEVELS.reduce(
+      (acc, level) => ({ ...acc, [level]: 0 }),
+      {}
+    );
     const severityInfo = this.SEVERITY_LEVELS.map((level) => ({
       severity: level,
       label: `${level.charAt(0)}${level.slice(1)}`
@@ -196,16 +204,9 @@ export class YarnAuditCheck {
     if (finalAuditPackages.length) {
       const severityCounts = finalAuditPackages.reduce((acc, item) => {
         const severity = item.Severity;
-        acc[severity] = (acc[severity] || 0) + 1;
+        acc[severity]++;
         return acc;
       }, severity);
-
-      // Initialize counts for severity levels not present in the data
-      this.SEVERITY_LEVELS.forEach((level) => {
-        if (!severityCounts[level]) {
-          severityCounts[level] = 0;
-        }
-      });
 
       const displayedCounts = severityInfo
         .map(({ severity, label }) =>
@@ -245,9 +246,11 @@ export class YarnAuditCheck {
           trimAndSplittedArray.forEach((line) => {
             try {
               auditResult.push(JSON.parse(line));
-            } catch (error) {
-              // console.error('Error parsing JSON:', error.message);
-              // console.error('Raw output:', line);
+            } catch (error: any) {
+              /* eslint-disable no-console */
+              console.error("Error parsing JSON:", error.message);
+              console.error("Raw output:", line);
+              /* eslint-enable no-console */
             }
           });
           auditResult.forEach((result) => {
@@ -277,7 +280,8 @@ export class YarnAuditCheck {
             reject(new Error(`Failed to parse JSON. See raw output above.`));
           }
         } else {
-          // console.error(auditOutput);
+          // eslint-disable-next-line no-console
+          console.error(auditOutput);
           reject(
             new Error(
               `Yarn audit process exited with code ${code}. See output above.`
