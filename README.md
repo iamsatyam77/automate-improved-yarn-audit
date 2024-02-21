@@ -1,5 +1,5 @@
 # Automate Improved Yarn Audit
-Automate Improved Yarn Audit is a script that automates the process of running `yarn audit` and `yarn run improved-yarn-audit` commands for checking dependencies vulnerabilities and ignore the vulnerabilities that don't have any new patch available.
+Automate Improved Yarn Audit is a script that automates the process of running `yarn audit` commands and allows user to bypass yarn audit for the packages without updating in code.
 
 GitHub Repo: https://github.com/iamsatyam77/automate-improved-yarn-audit
 

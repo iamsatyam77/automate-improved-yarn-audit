@@ -1,206 +1,288 @@
 #! /usr/bin/env node
-import { spawn, ChildProcessWithoutNullStreams } from "child_process";
+import { spawn } from "node:child_process";
+import Table from "cli-table";
 
-/**
- * Represents a package advisory.
- */
-interface Advisory {
-    moduleName: string;
-    advisoryId: string;
+export type YarnAdvisoryData = {
+  advisory: {
+    module_name: string;
+    severity: string;
+    title: string;
+    patched_versions: string;
+  };
+  resolution: {
+    path: string;
+    dev: boolean;
+    id: string;
+  };
+};
+
+export type YarnAuditData = {
+  type: string;
+  data: YarnAdvisoryData;
+};
+
+export type YarnAuditSummary = {
+  vulnerabilities: {
+    info: number;
+    low: number;
+    moderate: number;
+    high: number;
+    critical: number;
+  };
+  dependencies: number;
+  devDependencies: number;
+  optionalDependencies: number;
+  totalDependencies: number;
+};
+
+const enum Colors {
+  FG_RED = "\x1b[31m",
+  FG_GREEN = "\x1b[32m",
+  FG_YELLOW = "\x1b[33m",
+  FG_ORANGE = "\x1b[38;5;208m",
+  RESET_COLOR = "\x1b[0m"
 }
 
-/**
- * A class for running improved yarn audit.
- */
-class ImprovedYarnAuditRunner {
-    /**
-     * Type for audit advisory.
-     */
-    private readonly AUDIT_ADVISORY: string = "auditAdvisory";
+const table = new Table({
+  style: { head: ["reset"] },
+  colAligns: ["left", "left", "left"],
+  head: []
+});
 
-    /**
-     * Value for patched versions when no patch is available.
-     */
-    private readonly NO_PATCH_PATCHED_VERSION: string = "<0.0.0";
+export class YarnAuditCheck {
+  private readonly AUDIT_ADVISORY: string = "auditAdvisory";
+  private readonly AUDIT_SUMMARY: string = "auditSummary";
+  private readonly NO_PATCH_PATCHED_VERSION: string = "<0.0.0";
+  private readonly NO_PATCH_AVAILABLE: string = "No patch available";
+  private readonly SEVERITY_LEVELS: string[] = [
+    "critical",
+    "high",
+    "moderate",
+    "low",
+    "info"
+  ];
+  // If you want to add default packages
+  private readonly excludePackageList: string[] = [];
 
-    /**
-     * Add a unique object to the array if it does not exist already.
-     * @param packagesWithNoPatchAvailable - The array to add the object to.
-     * @param advisory - The object to add.
-     */
-    private addUniqueObject(
-        packagesWithNoPatchAvailable: Advisory[],
-        advisory: Advisory
-    ): void {
-        const isDuplicate = packagesWithNoPatchAvailable.some(
-            (obj) => obj.moduleName === advisory.moduleName
-        );
+  constructor(excludePackageList: string[]) {
+    this.excludePackageList =
+      excludePackageList.length === 0
+        ? this.excludePackageList
+        : excludePackageList;
+  }
 
-        if (!isDuplicate) {
-            packagesWithNoPatchAvailable.push(advisory);
+  private formatSeverity(severity: string): string {
+    let formattedSeverity: string;
+
+    switch (severity) {
+      case "critical":
+      case "high":
+        formattedSeverity = `${Colors.FG_RED}${severity}${Colors.RESET_COLOR}`;
+        break;
+      case "moderate":
+        formattedSeverity = `${Colors.FG_YELLOW}${severity}${Colors.RESET_COLOR}`;
+        break;
+      default:
+        formattedSeverity = severity;
+        break;
+    }
+
+    return formattedSeverity;
+  }
+  // Parse the yarn audit output and exclude packages
+  private excludeAndDisplayPackageInfo(auditOutput: YarnAuditData[]): boolean {
+    // filter only auditAdvisories and sort based on severity levels
+    const auditAdvisories = auditOutput
+      .filter((i) => i.type === this.AUDIT_ADVISORY)
+      .sort(
+        (a, b) =>
+          this.SEVERITY_LEVELS.indexOf(a.data.advisory.severity) -
+          this.SEVERITY_LEVELS.indexOf(b.data.advisory.severity)
+      );
+
+    const finalAuditPackages = auditAdvisories
+      .filter(
+        (advisory) =>
+          !this.excludePackageList.includes(advisory.data.advisory.module_name)
+      )
+      .map((advisory) => {
+        const patchedIn =
+          advisory.data.advisory.patched_versions.replace(" ", "") ===
+          this.NO_PATCH_PATCHED_VERSION
+            ? this.NO_PATCH_AVAILABLE
+            : advisory.data.advisory.patched_versions;
+
+        const auditPackage = {
+          Package: advisory.data.advisory.module_name,
+          Severity: advisory.data.advisory.severity,
+          Title: advisory.data.advisory.title,
+          "Patched In": patchedIn,
+          "Dependency of": `${advisory.data.resolution.path.split(">")[0]} ${
+            advisory.data.resolution.dev ? "[dev]" : ""
+          }`,
+          Path: advisory.data.resolution.path.split(">").join(" > "),
+          "More info": `https://www.npmjs.com/advisories/${advisory.data.resolution.id}`
+        };
+
+        // Display table for packages with vulnerabilities
+        const tableRows: any[] = [
+          ...Object.entries(auditPackage).map(([key, value]) => ({
+            [key]: key === "Severity" ? this.formatSeverity(value) : value
+          }))
+        ];
+        table.push(tableRows);
+
+        return auditPackage;
+      });
+
+    const vulnerablePackages = finalAuditPackages.filter((i) =>
+      this.SEVERITY_LEVELS.slice(0, 2).includes(i.Severity)
+    );
+    const pass = vulnerablePackages.length === 0;
+
+    if (this.excludePackageList.length) {
+      // eslint-disable-next-line no-console
+      console.info(`\n ${this.excludePackageList.length} - Package excluded:`);
+      const excludePackagesList: any[] = this.excludePackageList.map(
+        (value) => ({
+          [value]: `${Colors.FG_GREEN} EXCLUDED ${Colors.RESET_COLOR}`
+        })
+      );
+      table.push(excludePackagesList);
+    }
+
+    this.printAuditSummary(auditOutput, finalAuditPackages);
+    return pass;
+  }
+
+  private printAuditSummary(
+    auditOutput: YarnAuditData[],
+    finalAuditPackages: Record<string, any>[]
+  ): void {
+    // audit summary
+    const auditSummary = auditOutput.filter(
+      (i) => i.type === this.AUDIT_SUMMARY
+    );
+    const stringifyAuditSummary = JSON.stringify(auditSummary[0].data);
+    const auditSummaryObject: YarnAuditSummary = JSON.parse(
+      stringifyAuditSummary
+    ) as YarnAuditSummary;
+    const severity = this.SEVERITY_LEVELS.map((level) => ({ [level]: 0 }));
+    const severityInfo = this.SEVERITY_LEVELS.map((level) => ({
+      severity: level,
+      label: `${level.charAt(0)}${level.slice(1)}`
+    }));
+
+    // eslint-disable-next-line no-console
+    console.info(
+      `\n${finalAuditPackages.length} vulnerabilities found - Packages audited: ${auditSummaryObject.totalDependencies}`
+    );
+
+    if (finalAuditPackages.length) {
+      const severityCounts = finalAuditPackages.reduce((acc, item) => {
+        const severity = item.Severity;
+        acc[severity] = (acc[severity] || 0) + 1;
+        return acc;
+      }, severity);
+
+      // Initialize counts for severity levels not present in the data
+      this.SEVERITY_LEVELS.forEach((level) => {
+        if (!severityCounts[level]) {
+          severityCounts[level] = 0;
         }
+      });
+
+      const displayedCounts = severityInfo
+        .map(({ severity, label }) =>
+          severityCounts[severity] > 0
+            ? `${severityCounts[severity]} ${label}`
+            : null
+        )
+        .filter((severity) => severity !== null)
+        .join(" | ");
+
+      // eslint-disable-next-line no-console
+      console.info(`Severity: ${displayedCounts}`);
     }
+  }
 
-    /**
-     * Find packages with no patch available.
-     * @param auditOutput - The output of yarn audit.
-     * @returns An array of packages with no patch.
-     */
-    private findPackagesWithNoPatch(auditOutput: any[]): Advisory[] {
-        const packagesWithNoPatch: Advisory[] = [];
-        const auditAdvisories = auditOutput.filter(
-            (i) => i.type === this.AUDIT_ADVISORY
-        );
+  private parsingAndFilteringOutput(auditOutput: string): YarnAuditData[] {
+    // Split the output into lines and parse each line as JSON
+    const auditLines = auditOutput.trim().split("\n");
+    return auditLines.map((line) => JSON.parse(line));
+  }
 
-        auditAdvisories.forEach((element) => {
-            if (
-                element.data.advisory.patched_versions.replace(" ", "") ===
-                this.NO_PATCH_PATCHED_VERSION
-            ) {
-                const advisory = {
-                    moduleName: element.data.advisory.module_name,
-                    advisoryId: element.data.advisory.github_advisory_id
-                };
-                this.addUniqueObject(packagesWithNoPatch, advisory);
+  public runYarnAudit(): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      const yarnAuditProcess = spawn("yarn", ["audit", "--json"]);
+
+      let auditOutput = "";
+
+      yarnAuditProcess.stdout.on("data", (data: Buffer | string) => {
+        auditOutput += data.toString();
+      });
+
+      yarnAuditProcess.stderr.on("data", (data: Buffer | string) => {
+        const stringifyError = data.toString();
+        if (stringifyError) {
+          const trimAndSplittedArray = stringifyError.trim().split("\n");
+          const auditResult: YarnAuditData[] = [];
+          trimAndSplittedArray.forEach((line) => {
+            try {
+              auditResult.push(JSON.parse(line));
+            } catch (error) {
+              // console.error('Error parsing JSON:', error.message);
+              // console.error('Raw output:', line);
             }
-        });
-
-        return packagesWithNoPatch;
-    }
-
-    /**
-     * Parse and filter the yarn audit output.
-     * @param auditOutput - The output of yarn audit.
-     * @returns A comma-separated string of advisory ids.
-     */
-    private parsingAndFilteringOutput(auditOutput: string): string {
-        const auditLines = auditOutput.trim().split("\n");
-        const auditResult = auditLines.map((line) => JSON.parse(line));
-
-        const packagesWithNoPatch = this.findPackagesWithNoPatch(auditResult);
-
-        const advisoryIds = packagesWithNoPatch
-            .map((obj) => obj.advisoryId)
-            .join(",");
-        return advisoryIds;
-    }
-
-    /**
-     * Run the yarn audit process.
-     * @returns A promise that resolves with audit data.
-     */
-    private async runYarnAudit(): Promise<{
-        isAuditProcessCompleted: boolean;
-        data: string | null;
-    }> {
-        return new Promise((resolve, reject) => {
-            const yarnAuditProcess: ChildProcessWithoutNullStreams = spawn("yarn", [
-                "audit",
-                "--json"
-            ]);
-            let auditOutput = "";
-
-            yarnAuditProcess.stdout.on("data", (data: Buffer) => {
-                auditOutput += data.toString();
-            });
-
-            yarnAuditProcess.stderr.on("data", (data: Buffer) => {
-                console.error(data.toString());
-            });
-
-            yarnAuditProcess.on("close", (code: number) => {
-                console.info(`Yarn audit process closed with exit code ${code}.`);
-                if (code === 0) {
-                    console.info(
-                        `Yarn audit process exit successfully with output:\n${auditOutput}`
-                    );
-                    resolve({ isAuditProcessCompleted: true, data: null });
-                } else if (code === 12) {
-                    try {
-                        const advisoryIds = this.parsingAndFilteringOutput(auditOutput);
-                        resolve({ isAuditProcessCompleted: false, data: advisoryIds });
-                    } catch (error: any) {
-                        console.error("Error parsing JSON:", error.message);
-                        console.error("Raw output:", auditOutput);
-                        reject(new Error(`Failed to parse JSON. See raw output above.`));
-                    }
-                } else {
-                    console.error(auditOutput);
-                    reject(
-                        new Error(
-                            `Yarn audit process exited with code ${code}. See output above.`
-                        )
-                    );
-                }
-            });
-        });
-    }
-
-    /**
-     * Run the improved yarn audit.
-     * @param advisoryIds - Comma-separated string of advisory ids.
-     * @returns A promise that resolves when the audit is complete.
-     */
-    public async runYarnAuditImproved(advisoryIds: string): Promise<void> {
-        return new Promise((resolve, reject) => {
-            const improvedYarnAuditProcess: ChildProcessWithoutNullStreams = spawn(
-                "yarn",
-                ["run", "improved-yarn-audit", "--exclude", advisoryIds]
+          });
+          auditResult.forEach((result) => {
+            // eslint-disable-next-line no-console
+            console.info(
+              `${Colors.FG_YELLOW}${result.type}${Colors.RESET_COLOR} ${result.data}`
             );
-            let auditOutput = "";
-
-            improvedYarnAuditProcess.stdout.on("data", (data: number) => {
-                const chunk = data.toString();
-                auditOutput += chunk;
-            });
-
-            improvedYarnAuditProcess.stderr.on("data", (data: Buffer) => {
-                console.error(data.toString());
-            });
-
-            improvedYarnAuditProcess.on("close", (code) => {
-                console.info(`Improved yarn audit process closed with code ${code}.`);
-                if (code === 0) {
-                    console.info(
-                        `Improved yarn audit process exit successfully with output:\n${auditOutput}`
-                    );
-                    resolve();
-                } else {
-                    console.error(auditOutput);
-                    reject(
-                        new Error(
-                            `Improved yarn audit process exited with code ${code}. See output above.`
-                        )
-                    );
-                }
-            });
-        });
-    }
-
-    /**
-     * Run the yarn audit process and the improved yarn audit.
-     */
-    public async run(): Promise<void> {
-        try {
-            const { isAuditProcessCompleted, data } = await this.runYarnAudit();
-            if (isAuditProcessCompleted) {
-                console.info(
-                    "\x1b[32m%s\x1b[0m",
-                    "Yarn Audit Completed Successfully!!"
-                );
-            } else {
-                await this.runYarnAuditImproved(data!);
-                console.info(
-                    "\x1b[32m%s\x1b[0m",
-                    "Improved Yarn Audit Completed Successfully!!"
-                );
-            }
-        } catch (error: any) {
-            console.error("\x1b[31m%s\x1b[0m", error.message);
+          });
         }
-    }
+      });
+
+      yarnAuditProcess.on("close", (code: number) => {
+        // Code '0' indicates there are no vulnerabilities found in project's dependencies
+        if (code === 0) {
+          const auditResult = this.parsingAndFilteringOutput(auditOutput);
+          this.printAuditSummary(auditResult, []);
+          resolve(true);
+        } else if (code === 12) {
+          // Code '12' indicates that there are vulnerabilities found in project's dependencies
+          try {
+            const auditResult = this.parsingAndFilteringOutput(auditOutput);
+            const response = this.excludeAndDisplayPackageInfo(auditResult);
+            resolve(response);
+          } catch (parseError: any) {
+            // eslint-disable-next-line no-console
+            console.error("Error parsing JSON:", parseError.message);
+            reject(new Error(`Failed to parse JSON. See raw output above.`));
+          }
+        } else {
+          // console.error(auditOutput);
+          reject(
+            new Error(
+              `Yarn audit process exited with code ${code}. See output above.`
+            )
+          );
+        }
+      });
+    });
+  }
 }
+
+// Check if command line arguments are provided
+if (process.argv.length <= 2) {
+  console.log("Usage: node script.js <arg1> <arg2> ...");
+  process.exit(1); // Exit the script with error code 1
+}
+
+// Extract command line arguments (excluding the first two elements which are 'node' and the script file name)
+const excludePackages = process.argv.slice(2);
 
 // Instantiate and run the class
-const improvedYarnAuditRunner = new ImprovedYarnAuditRunner();
-improvedYarnAuditRunner.run();
+const yarnAuditCheck = new YarnAuditCheck(excludePackages);
+yarnAuditCheck.runYarnAudit();
