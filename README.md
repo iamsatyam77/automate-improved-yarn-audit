@@ -24,8 +24,14 @@ Yarn allows you to exclude certain vulnerabilities from the audit report by bypa
 Add the following package to your repo:
 
 ```
+project-path: Takes project absolute path for which you want to run this script
+arg : Give name of the packages you want to exclude from yarn audit process
+```
+
+```
     yarn add automate-improved-yarn-audit
-    yarn run automate-improved-yarn-audit
+
+    yarn run automate-improved-yarn-audit <project-path> <arg1> <arg2> ...
 ```
 
 ## Conclusion
