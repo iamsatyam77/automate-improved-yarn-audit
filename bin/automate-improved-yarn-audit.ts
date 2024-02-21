@@ -242,7 +242,7 @@ export class YarnAuditCheck {
         const stringifyError = data.toString();
         if (stringifyError) {
           const trimAndSplittedArray = stringifyError.trim().split("\n");
-          const auditResult: YarnAuditData[] = [];
+          const auditResult: YarnAuditError[] = [];
           trimAndSplittedArray.forEach((line) => {
             try {
               auditResult.push(JSON.parse(line));
